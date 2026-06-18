@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Учёт времени — вход</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: white; border-radius: 16px; padding: 32px;
+    width: 100%; max-width: 440px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  h1 { font-size: 24px; margin-bottom: 8px; color: #1a1a1a; }
+  .subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
+  label { display: block; font-size: 13px; color: #333; margin-bottom: 6px; font-weight: 500; }
+  input {
+    width: 100%; padding: 12px; border: 1px solid #ddd;
+    border-radius: 8px; font-size: 15px; margin-bottom: 16px;
+  }
+  input:focus { outline: none; border-color: #667eea; }
+  button {
+    width: 100%; padding: 14px; background: #667eea; color: white;
+    border: none; border-radius: 8px; font-size: 15px;
+    font-weight: 600; cursor: pointer;
+  }
+  button:hover { background: #5568d3; }
+  button:disabled { background: #ccc; cursor: not-allowed; }
+  .alert {
+    padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 14px;
+  }
+  .alert-error { background: #fee; color: #c33; border: 1px solid #fcc; }
+  .alert-success { background: #efe; color: #2a7; border: 1px solid #cfc; }
+  .hidden { display: none; }
+  .user-info {
+    background: #f8f9fa; padding: 16px; border-radius: 8px;
+    margin-bottom: 16px; font-size: 14px;
+  }
+  .user-info dt { color: #666; font-size: 12px; margin-top: 8px; }
+  .user-info dd { color: #1a1a1a; font-weight: 500; }
+  .session-item {
+    background: #f8f9fa; padding: 12px; border-radius: 8px;
+    margin-bottom: 8px; font-size: 13px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .session-current { background: #e3f2fd; border: 1px solid #90caf9; }
+  .logout-btn {
+    background: #f44336; padding: 6px 12px; font-size: 12px;
+    border-radius: 6px; color: white; border: none; cursor: pointer;
+  }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 11px; font-weight: 600; margin-left: 8px;
+  }
+  .badge-super { background: #ffd700; color: #000; }
+  .badge-admin { background: #4caf50; color: white; }
+  .badge-manager { background: #2196f3; color: white; }
+  .badge-employee { background: #9e9e9e; color: white; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div id="login-screen">
+    <h1>🔐 Вход</h1>
+    <p class="subtitle">Учёт времени — тестовая сборка</p>
+    <div id="alert"></div>
+    <form id="login-form">
+      <label for="username">Username или email</label>
+      <input type="text" id="username" required placeholder="smol0901">
+      <label for="password">Пароль</label>
+      <input type="password" id="password" required>
+      <button type="submit" id="login-btn">Войти</button>
+    </form>
+  </div>
+
+  <div id="dashboard-screen" class="hidden">
+    <h1>👤 Кабинет</h1>
+    <p class="subtitle">Добро пожаловать!</p>
+    <div id="alert-dashboard"></div>
+    <dl class="user-info" id="user-info"></dl>
+    <button onclick="logout()" style="background: #f44336; margin-bottom: 16px;">🚪 Выйти</button>
+    <button onclick="logoutAll()" style="background: #ff9800;">🚪🚪 Выйти со ВСЕХ устройств</button>
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: #666;">
+      📱 Активные сессии (<span id="sessions-count">0</span>)
+    </h3>
+    <div id="sessions-list"></div>
+  </div>
+</div>
+
+<script>
+const FN_URL = 'https://opcycxbvigeyqzrywkid.supabase.co/functions/v1/auth-password';
+
+function getSessionId() { return localStorage.getItem('session_id') || ''; }
+function setSessionId(id) {
+  if (id) localStorage.setItem('session_id', id);
+  else localStorage.removeItem('session_id');
+}
+function showAlert(targetId, type, text) {
+  document.getElementById(targetId).innerHTML = '<div class="alert alert-' + type + '">' + text + '</div>';
+  setTimeout(function() { document.getElementById(targetId).innerHTML = ''; }, 5000);
+}
+async function api(action, body) {
+  body = body || {};
+  const headers = { 'Content-Type': 'application/json' };
+  const sid = getSessionId();
+  if (sid) headers['x-session-id'] = sid;
+  const r = await fetch(FN_URL, {
+    method: 'POST', headers,
+    body: JSON.stringify(Object.assign({ action: action }, body))
+  });
+  const data = await r.json();
+  if (!r.ok || !data.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + r.status));
+  return data;
+}
+
+document.getElementById('login-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.textContent = 'Входим...';
+  try {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const data = await api('login', { login: username, password: password });
+    setSessionId(data.session_id);
+    if (data.must_change_password) {
+      const np = prompt('⚠️ Система требует сменить пароль.\nВведите новый пароль (минимум 6 символов):');
+      if (np && np.length >= 6) {
+        await api('change_password', { new_password: np });
+        showAlert('dashboard-screen', 'success', '✅ Пароль изменён!');
+      }
+    }
+    showDashboard();
+  } catch (err) {
+    showAlert('alert', 'error', '❌ ' + err.message);
+    btn.disabled = false;
+    btn.textContent = 'Войти';
+  }
+});
+
+function roleBadge(role) {
+  const labels = { superadmin: 'СУПЕРАДМИН', admin: 'АДМИН', manager: 'МЕНЕДЖЕР', employee: 'СОТРУДНИК' };
+  return '<span class="badge badge-' + role + '">' + (labels[role] || role) + '</span>';
+}
+
+async function showDashboard() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('dashboard-screen').classList.remove('hidden');
+  try {
+    const meResult = await api('me');
+    const user = meResult.user;
+    document.getElementById('user-info').innerHTML =
+      '<dt>Username</dt><dd>' + user.username + '</dd>' +
+      '<dt>Email</dt><dd>' + (user.email || '—') + '</dd>' +
+      '<dt>ФИО</dt><dd>' + (user.full_name || '—') + '</dd>' +
+      '<dt>Роль</dt><dd>' + roleBadge(user.role) + '</dd>' +
+      '<dt>Компания</dt><dd>' + (user.company_id || '— (глобальный)') + '</dd>' +
+      '<dt>Активен</dt><dd>' + (user.is_active ? '✅ Да' : '❌ Нет') + '</dd>' +
+      '<dt>Создан</dt><dd>' + new Date(user.created_at).toLocaleString('ru-RU') + '</dd>';
+    await loadSessions();
+  } catch (err) {
+    showAlert('alert-dashboard', 'error', '❌ ' + err.message);
+  }
+}
+
+async function loadSessions() {
+  try {
+    const sessResult = await api('list_sessions');
+    const sessions = sessResult.sessions;
+    document.getElementById('sessions-count').textContent = sessions.length;
+    const currentSid = getSessionId();
+    let html = '';
+    sessions.forEach(function(s) {
+      const isCurrent = s.id === currentSid;
+      const ua = (s.user_agent || '').slice(0, 60);
+      html += '<div class="session-item ' + (isCurrent ? 'session-current' : '') + '">' +
+        '<div>' +
+          '<strong>' + (isCurrent ? '📱 Эта сессия' : '💻 Другое устройство') + '</strong>' +
+          '<br><small>' + (s.ip_address || 'IP неизвестен') + ' • ' + ua + '</small>' +
+          '<br><small>Создана: ' + new Date(s.created_at).toLocaleString('ru-RU') + '</small>' +
+        '</div>' +
+        (isCurrent ? '' : '<button class="logout-btn" onclick="logoutOther(\'' + s.id + '\')">Выйти</button>') +
+      '</div>';
+    });
+    document.getElementById('sessions-list').innerHTML = html || '<p style="color: #999; font-size: 13px;">Нет активных сессий</p>';
+  } catch (err) {
+    showAlert('alert-dashboard', 'error', '❌ ' + err.message);
+  }
+}
+
+async function logout() {
+  try { await api('logout'); setSessionId(null); location.reload(); }
+  catch (err) { showAlert('alert-dashboard', 'error', '❌ ' + err.message); }
+}
+async function logoutAll() {
+  if (!confirm('Точно выйти со ВСЕХ устройств?')) return;
+  try { await api('logout_all'); setSessionId(null); location.reload(); }
+  catch (err) { showAlert('alert-dashboard', 'error', '❌ ' + err.message); }
+}
+async function logoutOther(sid) {
+  if (!confirm('Закрыть эту сессию?')) return;
+  try { await api('logout_other_session', { session_id: sid }); await loadSessions(); }
+  catch (err) { showAlert('alert-dashboard', 'error', '❌ ' + err.message); }
+}
+
+(async function() {
+  const sid = getSessionId();
+  if (sid) {
+    try { await api('me'); showDashboard(); }
+    catch (e) { setSessionId(null); }
+  }
+})();
+</script>
+</body>
+</html>
