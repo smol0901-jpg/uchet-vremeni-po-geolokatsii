@@ -111,7 +111,7 @@ function showAlert(targetId, type, text) {
 }
 async function api(action, body) {
   body = body || {};
-  const headers = { 'Content-Type': 'application/json' };
+  const headers = { 'Content-Type': 'application/json', 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wY3ljeGJ2aWdleXF6cnl3a2lkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2Mzk2OTksImV4cCI6MjA5NzIxNTY5OX0.MItWU_ALpOyBdECS2DZW-lHvlCNmGIRV_Bm_-et_F28', 'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wY3ljeGJ2aWdleXF6cnl3a2lkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2Mzk2OTksImV4cCI6MjA5NzIxNTY5OX0.MItWU_ALpOyBdECS2DZW-lHvlCNmGIRV_Bm_-et_F28' };
   const sid = getSessionId();
   if (sid) headers['x-session-id'] = sid;
   const r = await fetch(FN_URL, {
